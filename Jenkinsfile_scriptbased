@@ -1,63 +1,70 @@
 node {
+    // Define environment variables
+    def NEXUS_VERSION = "nexus3"
+    def NEXUS_PROTOCOL = "http"
+    def NEXUS_URL = "54.215.73.110:8081"
+    def NEXUS_REPOSITORY = "test"
+    def NEXUS_CREDENTIAL_ID = "nexus"
 
-    def mvnHome
-    stage('Preparation') { // for display purposes
-        // Get some code from a GitHub repository
-        git 'https://github.com/betawins/spring3-mvc-maven-xml-hello-world-1.git'
-        // Get the Maven tool.
-        // ** NOTE: This 'M3' Maven tool must be configured
-        // **       in the global configuration.
-        mvnHome = tool 'Maven'
+    stage('Checkout Code') {
+        echo "Cloning repository..."
+        git branch: 'master', url: 'https://github.com/prakash6333/spring3-mvc-maven-xml-hello-world-1.git'
     }
-    stage('Build') {
-        // Run the maven build
-        withEnv(["MVN_HOME=$mvnHome"]) {
-            if (isUnix()) {
-                sh '/usr/share/maven/bin/mvn -Dmaven.test.failure.ignore clean package'
-            } else {
-                bat(/"%MVN_HOME%\bin\mvn" -Dmaven.test.failure.ignore clean package/)
+
+    stage('Build with Maven') {
+        echo "Building the project using Maven..."
+        try {
+            sh 'mvn -Dmaven.test.failure.ignore=true clean package'
+        } finally {
+            echo "Archiving JUnit test results..."
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
             }
         }
     }
-        stage("publish to nexus") {
-            
-                script {
-                    // Read POM xml file using 'readMavenPom' step , this step 'readMavenPom' is included in: https://plugins.jenkins.io/pipeline-utility-steps
-                    pom = readMavenPom file: "pom.xml";
-                    // Find built artifact under target folder
-                    filesByGlob = findFiles(glob: "target/*.${pom.packaging}");
-                    // Print some info from the artifact found
-                    echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].length} ${filesByGlob[0].lastModified}"
-                    // Extract the path from the File found
-                    artifactPath = filesByGlob[0].path;
-                    // Assign to a boolean response verifying If the artifact name exists
-                    artifactExists = fileExists artifactPath;
-                    if(artifactExists) {
-                        echo "*** File: ${artifactPath}, group: ${pom.groupId}, packaging: ${pom.packaging}, version ${pom.version}";
-                        nexusArtifactUploader(
-                            nexusVersion: "nexus3",
-                            protocol: "http",
-                            nexusUrl: "13.233.104.193:8081/",
-                            groupId: pom.groupId,
-                            version: '${BUILD_NUMBER}',
-                            repository: "ncodeit-scripted",
-                            credentialsId: "nexus_credentials",
-                            artifacts: [
-                                // Artifact generated such as .jar, .ear and .war files.
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: artifactPath,
-                                type: pom.packaging],
-                                // Lets upload the pom.xml file for additional information for Transitive dependencies
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: "pom.xml",
-                                type: "pom"]
-                            ]
-                        );
-                    } else {
-                        error "*** File: ${artifactPath}, could not be found";
-                    }
-                }
-            }
+
+    stage('Publish Artifact to Nexus') {
+        echo "Preparing to upload artifacts to Nexus..."
+        def pom = readMavenPom file: "pom.xml"
+        def filesByGlob = findFiles(glob: "target/*.${pom.packaging}")
+        echo "Found artifact: ${filesByGlob[0].name} at ${filesByGlob[0].path}"
+
+        def artifactPath = filesByGlob[0].path
+        def artifactExists = fileExists artifactPath
+
+        if (artifactExists) {
+            echo "Uploading artifact ${artifactPath} to Nexus..."
+            nexusArtifactUploader(
+                nexusVersion: NEXUS_VERSION,
+                protocol: NEXUS_PROTOCOL,
+                nexusUrl: NEXUS_URL,
+                groupId: pom.groupId,
+                version: "${BUILD_NUMBER}",
+                repository: NEXUS_REPOSITORY,
+                credentialsId: NEXUS_CREDENTIAL_ID,
+                artifacts: [
+                    [
+                        artifactId: pom.artifactId,
+                        classifier: '',
+                        file: artifactPath,
+                        type: pom.packaging
+                    ],
+                    [
+                        artifactId: pom.artifactId,
+                        classifier: '',
+                        file: "pom.xml",
+                        type: "pom"
+                    ]
+                ]
+            )
+        } else {
+            error "Artifact not found at ${artifactPath}"
         }
+    }
+
+    stage('Post Build Actions') {
+        echo "Archiving build artifacts..."
+        archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+        echo "✅ Build and deployment successful. Artifact uploaded to Nexus at ${NEXUS_URL}"
+    }
+}
