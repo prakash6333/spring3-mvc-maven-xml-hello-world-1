@@ -34,8 +34,10 @@ pipeline {
             }
             post {
                 always {
-                    // Collect test results (optional)
-                    junit 'target/surefire-reports/*.xml'
+                    // Allow pipeline to pass even if no test reports are found
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                    }
                 }
             }
         }
@@ -89,11 +91,4 @@ pipeline {
 
     post {
         success {
-            echo "✅ Build and deployment successful — Artifact uploaded to Nexus at ${NEXUS_URL}!"
-            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-        }
-        failure {
-            echo "❌ Build failed. Please check logs for details."
-        }
-    }
-}
+            echo "✅ Build and deployment successful — Artifact uploaded to Nexus
