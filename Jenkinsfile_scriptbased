@@ -4,7 +4,6 @@ node {
     def NEXUS_PROTOCOL = "http"
     def NEXUS_URL = "54.215.73.110:8081"
     def NEXUS_REPOSITORY = "test"
-    def NEXUS_CREDENTIAL_ID = "nexus"
 
     stage('Checkout Code') {
         echo "Cloning repository..."
@@ -41,7 +40,7 @@ node {
                 groupId: pom.groupId,
                 version: "${BUILD_NUMBER}",
                 repository: NEXUS_REPOSITORY,
-                credentialsId: NEXUS_CREDENTIAL_ID,
+                // credentialsId REMOVED (no auth for public repo)
                 artifacts: [
                     [
                         artifactId: pom.artifactId,
