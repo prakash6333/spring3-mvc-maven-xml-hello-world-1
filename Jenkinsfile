@@ -20,7 +20,7 @@ pipeline {
             steps {
                 script {
                     // Cloning from your public GitHub repo (no credentials needed)
-                    git url: 'https://github.com/prakash6333/spring3-mvc-maven-xml-hello-world-1.git', branch: 'main'
+                    git url: 'https://github.com/prakash6333/spring3-mvc-maven-xml-hello-world-1.git', branch: 'master'
                 }
             }
         }
